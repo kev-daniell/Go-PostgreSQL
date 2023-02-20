@@ -1,22 +1,16 @@
 package transaction
 
 import (
+	"Postgres/types"
 	"encoding/json"
-	"github.com/jinzhu/gorm"
+	"gorm.io/gorm"
 	"log"
 	"net/http"
 )
 
-type ApiService interface {
+type TxnApi interface {
 	MakeTransaction(w http.ResponseWriter, r *http.Request)
-}
-
-type Transaction struct {
-	gorm.Model
-	Method string
-	Amount int
-	Item   string
-	UserID int
+	GetTransaction(w http.ResponseWriter, r *http.Request)
 }
 
 type txn struct {
@@ -29,7 +23,8 @@ func NewTxn(db *gorm.DB) *txn {
 
 func (t *txn) MakeTransaction(w http.ResponseWriter, r *http.Request) {
 	var (
-		txnRow Transaction
+		txnRow types.Transaction
+		usr    types.User
 	)
 
 	err := json.NewDecoder(r.Body).Decode(&txnRow)
@@ -38,23 +33,27 @@ func (t *txn) MakeTransaction(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	createdTxn := t.db.Create(&txnRow)
-	if createdTxn.Error != nil {
-		log.Println("error occurred creating", createdTxn.Error)
+	resp := t.db.Create(&txnRow)
+	if resp.Error != nil {
+		log.Println("error occurred creating", resp.Error)
 	}
 
-	err = json.NewEncoder(w).Encode(&createdTxn)
+	t.db.Where("id = ?", txnRow.UserID).Find(&usr)
+	usr.Transactions = append(usr.Transactions, txnRow)
+	t.db.Save(&usr)
+
+	err = json.NewEncoder(w).Encode(&txnRow)
 	if err != nil {
 		return
 	}
 }
 
 func (t *txn) GetTransaction(w http.ResponseWriter, r *http.Request) {
-	var txns []Transaction
+	var transactions []types.Transaction
 
-	t.db.Find(&txns)
+	t.db.Find(&transactions)
 
-	err := json.NewEncoder(w).Encode(&txns)
+	err := json.NewEncoder(w).Encode(&transactions)
 	if err != nil {
 		return
 	}
