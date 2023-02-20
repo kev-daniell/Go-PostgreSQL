@@ -62,15 +62,22 @@ func main() {
 	txnHandler := transaction.NewTxn(db)
 	userHandler := user2.NewUser(db)
 
-	router.HandleFunc("/transaction", txnHandler.MakeTransaction).Methods("POST")
-	router.HandleFunc("/transaction", txnHandler.GetTransaction).Methods("GET")
-	router.HandleFunc("/users", userHandler.MakeUser).Methods("POST")
-	router.HandleFunc("/users", userHandler.GetUsers).Methods("GET")
-	router.HandleFunc("/user/{id}", userHandler.GetUser).Methods("Get")
+	// transactions:
+	router.HandleFunc("/transactions", txnHandler.MakeTransaction).Methods(http.MethodPost)
+	router.HandleFunc("/transactions", txnHandler.GetAllTransactions).Methods(http.MethodGet)
+	router.HandleFunc("/transactions/{id}", txnHandler.GetTransaction).Methods(http.MethodGet)
+	router.HandleFunc("/transactions/{id}", txnHandler.UpdateTransaction).Methods(http.MethodPatch)
+	router.HandleFunc("/transactions/{id}", txnHandler.DeleteTransaction).Methods(http.MethodDelete)
+
+	// users:
+	router.HandleFunc("/users", userHandler.MakeUser).Methods(http.MethodPost)
+	router.HandleFunc("/users", userHandler.GetAllUsers).Methods(http.MethodGet)
+	router.HandleFunc("/users/{id}", userHandler.GetUser).Methods(http.MethodGet)
+	router.HandleFunc("/users/{id}", userHandler.UpdateUser).Methods(http.MethodPatch)
+	router.HandleFunc("/users/{id}", userHandler.DeleteUser).Methods(http.MethodDelete)
 
 	err = http.ListenAndServe(":8080", router)
 	if err != nil {
 		return
 	}
-
 }
