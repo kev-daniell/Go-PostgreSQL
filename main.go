@@ -2,14 +2,17 @@ package main
 
 import (
 	transaction "Postgres/transactions"
+	"Postgres/types"
 	user2 "Postgres/user"
 	"encoding/json"
 	"fmt"
 	"github.com/gorilla/mux"
-	"github.com/jinzhu/gorm"
-	_ "github.com/jinzhu/gorm/dialects/postgres"
-	"net/http"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 	"os"
+	"strconv"
+
+	"net/http"
 )
 
 func main() {
@@ -18,31 +21,34 @@ func main() {
 		db  *gorm.DB
 	)
 
-	dialect := os.Getenv("DIALECT")
 	host := os.Getenv("HOST")
-	dbPort := os.Getenv("DBPORT")
+	dbPort, err := strconv.Atoi(os.Getenv("DBPORT"))
+	if err != nil {
+		panic(err)
+	}
 	user := os.Getenv("USER")
 	dbname := os.Getenv("NAME")
 	dbpassword := os.Getenv("PASSWORD")
 
 	// Database connection string
-	dbURI := fmt.Sprintf("host=%s user=%s dbname=%s sslmode=disable password=%s port=%s", host, user, dbname, dbpassword, dbPort)
+	dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%v sslmode=disable", host, user, dbpassword, dbname, dbPort)
 
 	// Opening connection to database
-	db, err = gorm.Open(dialect, dbURI)
+	fmt.Println("dialect:", dsn)
+	db, err = gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
 		panic(err)
 	}
 	fmt.Println("Connected to DB")
 
-	defer func(db *gorm.DB) {
-		err := db.Close()
-		if err != nil {
-		}
-	}(db)
-
-	db.AutoMigrate(&user2.User{})
-	db.AutoMigrate(&transaction.Transaction{})
+	err = db.AutoMigrate(&types.User{})
+	if err != nil {
+		return
+	}
+	err = db.AutoMigrate(&types.Transaction{})
+	if err != nil {
+		return
+	}
 
 	router := mux.NewRouter()
 
@@ -60,6 +66,7 @@ func main() {
 	router.HandleFunc("/transaction", txnHandler.GetTransaction).Methods("GET")
 	router.HandleFunc("/users", userHandler.MakeUser).Methods("POST")
 	router.HandleFunc("/users", userHandler.GetUsers).Methods("GET")
+	router.HandleFunc("/user/{id}", userHandler.GetUser).Methods("Get")
 
 	err = http.ListenAndServe(":8080", router)
 	if err != nil {

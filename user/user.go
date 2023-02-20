@@ -1,29 +1,17 @@
 package user
 
 import (
-	transaction "Postgres/transactions"
+	"Postgres/types"
 	"encoding/json"
-	"github.com/jinzhu/gorm"
+	"github.com/gorilla/mux"
+	"gorm.io/gorm"
 	"log"
 	"net/http"
+	"strconv"
 )
 
 type ApiService interface {
 	MakeUser(w http.ResponseWriter, r *http.Request)
-}
-
-type Transaction struct {
-	gorm.Model
-	Method string
-	Amount int
-	Item   string
-	UserID int
-}
-
-type User struct {
-	gorm.Model
-	Name         string
-	Transactions []transaction.Transaction
 }
 
 type user struct {
@@ -35,20 +23,20 @@ func NewUser(db *gorm.DB) *user {
 }
 
 func (u *user) MakeUser(w http.ResponseWriter, r *http.Request) {
-	var user User
+	var user types.User
 	err := json.NewDecoder(r.Body).Decode(&user)
 	if err != nil {
 		log.Println("error decoding", err)
 		return
 	}
 
-	createdUser := u.db.Create(&user)
-	if createdUser.Error != nil {
-		log.Println("error making ", user, createdUser.Error)
+	resp := u.db.Create(&user)
+	if resp.Error != nil {
+		log.Println("error making ", user, resp.Error)
 		return
 	}
 
-	err = json.NewEncoder(w).Encode(&createdUser)
+	err = json.NewEncoder(w).Encode(&user)
 	if err != nil {
 		log.Println("error")
 		return
@@ -57,12 +45,44 @@ func (u *user) MakeUser(w http.ResponseWriter, r *http.Request) {
 }
 
 func (u *user) GetUsers(w http.ResponseWriter, r *http.Request) {
-	var users []User
-	var txns []Transaction
+	var users []types.User
 
 	u.db.Find(&users)
-	u.db.Model(&users).Related(&txns)
 	err := json.NewEncoder(w).Encode(&users)
+	if err != nil {
+		return
+	}
+}
+
+func (u *user) GetUser(w http.ResponseWriter, r *http.Request) {
+	var (
+		usr          types.User
+		transactions []types.Transaction
+	)
+
+	vars := mux.Vars(r)
+	id, err := strconv.Atoi(vars["id"])
+	if err != nil {
+		log.Println("id is missing in GetUser")
+		log.Println(err)
+		w.WriteHeader(404)
+	}
+
+	resp := u.db.First(&usr, id)
+	if resp.Error != nil {
+		log.Println(resp.Error)
+		w.WriteHeader(500)
+	}
+
+	resp = u.db.Where("user_id = ?", id).Find(&transactions)
+	if resp.Error != nil {
+		log.Println(resp.Error)
+		w.WriteHeader(500)
+	}
+
+	usr.Transactions = transactions
+
+	err = json.NewEncoder(w).Encode(&usr)
 	if err != nil {
 		return
 	}
